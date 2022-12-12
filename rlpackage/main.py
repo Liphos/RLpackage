@@ -3,10 +3,10 @@ from typing import List
 import gym
 import torch
 
-from rlpackage.core.replayBuffer.replayBuffer import ArrayReplayBuffer
-from rlpackage.core.environment.env import EnvInfo
-from rlpackage.core.episode.episodeExperience import EpisodeExperience
-from rlpackage.core.policy.policy import Policy, PPO
+from core.replayBuffer.replayBuffer import ArrayReplayBuffer
+from core.environment.env import EnvInfo
+from core.episode.episodeExperience import EpisodeExperience
+from core.policy.policy import Policy, PPO
 
 
 def test_policy(policy_alg:Policy, env_name:str, render_mode:str="human") -> int:

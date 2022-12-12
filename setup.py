@@ -1,3 +1,4 @@
+"""Setup for the reinforcement learning package"""
 from setuptools import setup
 
 setup(

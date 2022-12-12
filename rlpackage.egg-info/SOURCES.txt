@@ -1,5 +1,7 @@
 setup.py
+rlpackage/__init__ .py
 rlpackage/main.py
+rlpackage/test_sb3.py
 rlpackage.egg-info/PKG-INFO
 rlpackage.egg-info/SOURCES.txt
 rlpackage.egg-info/dependency_links.txt
