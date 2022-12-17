@@ -1,10 +1,10 @@
 import torch
 import gym
 
-from rlpackage.core.replayBuffer.replayBuffer import ArrayReplayBuffer
-from rlpackage.core.environment.env import EnvInfo
-from rlpackage.core.episode.episodeExperience import EpisodeExperience
-from rlpackage.core.policy.policy import DQN
+from core.replay_buffer.replay_buffer import ArrayReplayBuffer
+from core.environment.env import EnvInfo
+from core.episode.episodeExperience import EpisodeExperience
+from core.policy.policy import DQN
 
 from multiprocessing import Process, Manager, Queue
 
@@ -22,14 +22,14 @@ def collectExperience(policy:DQN, env_name:str, queue:Queue) -> None:
     env_info = EnvInfo.from_env(env)
     episode = EpisodeExperience(env_info)
     obs, info = env.reset(seed=42)
-    
+
     step = 0
     while True:
         if queue.qsize() <= 100: # We don't want to run for nothing and to give old updates
             action = policy.act(obs)
             next_obs, reward, done, timelimit, info = env.step(action)
             episode.append(obs, action, reward, done or timelimit, next_obs)
-            
+
             if done or timelimit:
                 obs, info = env.reset()
                 episode.to_numpy()
@@ -37,8 +37,8 @@ def collectExperience(policy:DQN, env_name:str, queue:Queue) -> None:
                 episode = EpisodeExperience(env_info)
 
             obs = next_obs #Do not forget to switch
-        
-            
+
+
 def storeExperience(replay_buffer: ArrayReplayBuffer, queues: List[Queue]):
     """Store experiences from the queues
 

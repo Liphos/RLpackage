@@ -2,18 +2,22 @@
 from typing import List
 import gym
 import torch
+import numpy as np
 
-from core.replayBuffer.replayBuffer import ArrayReplayBuffer
+from core.replay_buffer.replay_buffer import ArrayReplayBuffer
 from core.environment.env import EnvInfo
 from core.episode.episodeExperience import EpisodeExperience
 from core.policy.policy import Policy, PPO
 
+ENV_NAME = "LunarLander-v2"
+NB_UPDT_BETWEEN_TESTS = 10
+N_ENVS = 3
 
 def test_policy(policy_alg:Policy, env_name:str, render_mode:str="human") -> int:
     """Return the reward gain in the episode when testing the policy
 
     Args:
-        policy_alg (DQN): The policy to test
+        policy_alg (Policy): The policy to test
         env_name (str): the environment name
         render_mode (str): the render mode
 
@@ -22,70 +26,59 @@ def test_policy(policy_alg:Policy, env_name:str, render_mode:str="human") -> int
     """
 
     #env = gym.make(env_name, render_mode=render_mode)
-    env = gym.make(env_name, render_mode=render_mode)
-    obs, _ = env.reset(seed=42)
+    test_env = gym.make(env_name, render_mode=render_mode, continuous=True)
+    obs, _ = test_env.reset(seed=42)
     cumulative_reward = 0
     done = False
     while not done:
         actions = policy_alg.act(obs, deterministic=True)
-        next_obs, reward, done, timelimit, _ = env.step(actions)
+        action_clip = np.clip(actions, test_env.action_space.low, test_env.action_space.high)
+        next_obs, reward, done, timelimit, _ = test_env.step(action_clip)
         cumulative_reward += reward
         done = done or timelimit
 
         obs = next_obs
 
-    env.close()
+    test_env.close()
 
 
     return cumulative_reward
 
-def reset_envs(envs):
+def reset_envs(envs:gym.vector.AsyncVectorEnv):
     """Reset the environment"""
+
     obs, info = envs.reset()
     return obs, info
 
-def reset_buffers(replay_buffer:ArrayReplayBuffer, episodes:List[EpisodeExperience], n_envs:int=1):
+def reset_buffers(replay_buffer:ArrayReplayBuffer,
+                  episodes:List[EpisodeExperience],
+                  env_info:EnvInfo):
     """Reset the replay buffer"""
+
     replay_buffer.reset()
-    episodes = [EpisodeExperience(env_info) for _ in range(n_envs)]
-    return episodes
+    for incr in enumerate(episodes):
+        episodes[incr[0]] = EpisodeExperience(env_info)
 
+def train_loop():
+    """The training loop"""
 
-if __name__ == '__main__':
-    print("=======================================================================================")
-
-    # set device to cpu or cuda
-    device = torch.device('cpu')
-
-    if torch.cuda.is_available():
-        device = torch.device('cuda:0')
-        torch.cuda.empty_cache()
-        print("Device set to : " + str(torch.cuda.get_device_name(device)))
-    else:
-        print("Device set to : cpu")
-
-    print("=======================================================================================")
-
-    ENV_NAME = "BipedalWalker-v3"
-
-    N_ENVS = 3
-    env = gym.vector.AsyncVectorEnv([lambda: gym.make(ENV_NAME, render_mode=None)
+    env = gym.vector.AsyncVectorEnv([lambda: gym.make(ENV_NAME, render_mode=None, continuous=True)
                                      for _ in range(N_ENVS)])
-
     env_info = EnvInfo.from_env(env, async_env=True, n_envs=N_ENVS)
     replay_buffer = ArrayReplayBuffer(env_info)
-    policy = PPO(env_info, replay_buffer, optimizer=torch.optim.Adam, batch_size=256)
-
     episodes = [EpisodeExperience(env_info) for _ in range(N_ENVS)]
-    obs, info = env.reset()
+    policy = PPO(env_info, replay_buffer, optimizer=torch.optim.Adam, batch_size=1)
 
-    NB_UPDT_BETWEEN_TESTS = 10
+    obs, _ = env.reset()
+
     mean_loss = 0
-    for update in range(2000000):
+    for _ in range(2000000):
         #Collect experience from the environment
         action, action_log_prob = policy.act(obs)
-        next_obs, reward, done, timelimit, info = env.step(action)
-
+        action_clip = np.clip(action, env_info.action_space.low, env_info.action_space.high)
+        next_obs, reward, done, timelimit, _ = env.step(action_clip)
+        if np.any(np.isnan(action_clip)) or np.any(np.isnan(action_log_prob)):
+            print()
         for incr in range(N_ENVS):
             episodes[incr].append(obs[incr],
                                   action[incr],
@@ -104,9 +97,9 @@ if __name__ == '__main__':
         loss, reset_info = policy.train()
 
         if "buffers" in reset_info:
-            episodes = reset_buffers(replay_buffer, episodes)
+            reset_buffers(replay_buffer, episodes, env_info)
         if "envs" in reset_info:
-            obs, info = reset_envs(env)
+            obs, _ = reset_envs(env)
 
         if loss is not None:
             mean_loss += loss
@@ -117,6 +110,23 @@ if __name__ == '__main__':
                       f"reward: {test_rew:.6f}  | "
                       f"replay_buffer_size: {replay_buffer.size:8f}")
                 mean_loss = 0
-
-
     env.close()
+
+
+if __name__ == '__main__':
+    print("=======================================================================================")
+
+    # set device to cpu or cuda
+    device = torch.device('cpu')
+
+    if torch.cuda.is_available():
+        device = torch.device('cuda:0')
+        torch.cuda.empty_cache()
+        print("Device set to : " + str(torch.cuda.get_device_name(device)))
+    else:
+        print("Device set to : cpu")
+
+    print("=======================================================================================")
+
+    train_loop()
+

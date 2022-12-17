@@ -16,7 +16,7 @@
             "name": "Main",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/rlpackage/rlpackage/main.py",
+            "program": "${workspaceFolder}/rlpackage/main.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }
